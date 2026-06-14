@@ -192,18 +192,16 @@ function drawCharts(){
 }
 
 var view="today";
-function render(){
+function render(){try{_render();}catch(err){var el=document.getElementById("list");if(el)el.innerHTML='<div class="empty">Couldn\'t render: '+((err&&err.message)?(''+err.message):(''+err))+'</div>';}}
+function _render(){
  load();kpis();
  var el=document.getElementById("list"),sw=document.getElementById("searchWrap");
  if(view==="today"){
   sw.style.display="none";
   var top=topList();
-  el.innerHTML=top.length?top.map(function(x){return rowHtml(x.p,x.reason,x.cls);}).join(''):'<div class="empty">Nothing pressing today. Use Pipeline to call anyone.</div>';
+  el.innerHTML=top.length?top.map(function(x){return rowHtml(x.p,x.reason,x.cls);}).join(''):'<div class="empty">'+(data.length?'Nothing pressing today. Use Pipeline to call anyone.':'No prospects on this device yet — tap ⟲ Sync (top right) to load a .json backup.')+'</div>';
  }else if(view==="pipe"){
   sw.style.display="block";
   var q=(document.getElementById("search").value||'').trim().toLowerCase();
   var rows=activeList().filter(function(p){if(!q)return true;return ((who(p)+' '+company(p)).toLowerCase().indexOf(q)>=0);});
-  rows.sort(function(a,b){var d=(PCT[b.stage]||0)-(PCT[a.stage]||0);return d||who(a).localeCompare(who(b));});
-  el.innerHTML=rows.length?rows.map(function(p){return rowHtml(p,'','');}).join(''):'<div class="empty">'+(data.length?'No matches.':'No prospects on this device yet. Open the full web app on this phone and use Sync to load your data.')+'</div>';
- }else{
-  sw.style.display="
+  rows.sort(function(a,b){var d=(PCT[b.stage]||0)-(PCT[a.stage]||0);return d|

@@ -192,13 +192,14 @@ function drawCharts(){
 }
 
 var view="today";
-function render(){
+function render(){try{_render();}catch(err){var el=document.getElementById("list");if(el)el.innerHTML='<div class="empty">Couldn\'t render: '+((err&&err.message)?(''+err.message):(''+err))+'</div>';}}
+function _render(){
  load();kpis();
  var el=document.getElementById("list"),sw=document.getElementById("searchWrap");
  if(view==="today"){
   sw.style.display="none";
   var top=topList();
-  el.innerHTML=top.length?top.map(function(x){return rowHtml(x.p,x.reason,x.cls);}).join(''):'<div class="empty">Nothing pressing today. Use Pipeline to call anyone.</div>';
+  el.innerHTML=top.length?top.map(function(x){return rowHtml(x.p,x.reason,x.cls);}).join(''):'<div class="empty">'+(data.length?'Nothing pressing today. Use Pipeline to call anyone.':'No prospects on this device yet — tap ⟲ Sync (top right) to load a .json backup.')+'</div>';
  }else if(view==="pipe"){
   sw.style.display="block";
   var q=(document.getElementById("search").value||'').trim().toLowerCase();
