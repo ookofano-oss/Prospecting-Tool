@@ -34,6 +34,8 @@ header .sub{font-size:12px;color:var(--muted);margin-top:2px}
 .row .info{flex:1;min-width:0}
 .row .nm{font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row .co{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.cat{display:inline-block;font-size:10.5px;font-weight:650;padding:1px 8px;border-radius:20px;background:#1c2531;border:1px solid var(--line);color:var(--muted)}
+.syncbtn{background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:11px;padding:9px 13px;font-size:13.5px;font-weight:650;flex-shrink:0}
 .comp{display:flex;align-items:center;gap:7px;margin-top:7px}
 .comp .bar{flex:1;height:5px;border-radius:4px;background:#222c39;overflow:hidden}
 .comp .bar i{display:block;height:100%;background:var(--brand)}
@@ -68,9 +70,12 @@ header .sub{font-size:12px;color:var(--muted);margin-top:2px}
 </head>
 <body>
 <header>
-  <h1>Prospects</h1>
-  <div class="sub" id="hsub"></div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <div style="flex:1;min-width:0"><h1>Prospects</h1><div class="sub" id="hsub"></div></div>
+    <button id="syncBtn" class="syncbtn">⟲ Sync</button>
+  </div>
 </header>
+<input type="file" id="syncFile" accept=".json,application/json" style="display:none" />
 <div class="kpis" id="kpis"></div>
 <div class="tabs">
   <div class="tab on" data-v="today">Today</div>
@@ -105,6 +110,8 @@ function activeList(){return data.filter(function(p){return !p.archived&&p.stage
 function who(p){return (p.contactName&&(''+p.contactName).trim())?(''+p.contactName).trim():(p.company||p.name||'—');}
 function company(p){return p.company||p.name||'';}
 function liHref(p){var l=(''+(p.link||'')).trim();if(/linkedin\.com/i.test(l))return l;return "https://www.linkedin.com/search/results/all/?keywords="+encodeURIComponent(who(p)+' '+(company(p)||''));}
+function segLabel(p){var s=p.segment||'';if(/HNW/i.test(s))return 'HNWI';if(/Institution/i.test(s))return 'Institution';if(/Corporate/i.test(s))return 'Corporate / SME';if(/Business Owner|Brand/i.test(s))return 'Business Owner';if(/CEO|Management/i.test(s))return 'CEO / Mgmt';return s||'Individual';}
+function subLine(p){var co=(company(p)||'').trim(),nm=(who(p)||'').trim();if(co&&co.toLowerCase()!==nm.toLowerCase())return esc(co);return '<span class="cat">'+esc(segLabel(p))+'</span>';}
 function logCall(id){var p=byId(id);if(!p)return;var iso=today();if(!p.contactLog)p.contactLog=[];p.contactLog.push({d:iso,t:"Call"});p.lastContacted=iso;if(p.stage==="To Research"||p.stage==="Researching"||p.stage==="Contact Found")p.stage="Contacted";save();setTimeout(render,400);}
 
 function kpis(){
@@ -141,7 +148,7 @@ function rowHtml(p,reason,cls){
  var rb=reason?'<span class="reason '+(cls||'')+'">'+esc(reason)+'</span><br>':'';
  return '<div class="row"><div class="info">'+rb
    +'<div class="nm">'+esc(who(p))+(hasContact(p)?'<span class="dot"></span>':'')+'</div>'
-   +'<div class="co">'+esc(company(p)||'')+'</div>'
+   +'<div class="co">'+subLine(p)+'</div>'
    +'<div class="comp"><div class="bar"><i style="width:'+pct+'%"></i></div><span class="st">'+esc(p.stage||'')+'</span></div>'
   +'</div><div class="acts">'
    +'<a class="btn li" href="'+liHref(p)+'" target="_blank" rel="noopener">in</a>'
@@ -204,6 +211,25 @@ function render(){
  }
 }
 
+function mergeIn(arr){
+ load();
+ var byIdMap={},byNm={};
+ data.forEach(function(p){if(p.id)byIdMap[p.id]=p;byNm[((p.contactName||p.name||'')+'|'+(p.company||p.name||'')).toLowerCase()]=p;});
+ var added=0,updated=0;
+ arr.forEach(function(inc){
+  if(!inc||typeof inc!=="object")return;
+  var ex=(inc.id&&byIdMap[inc.id])||byNm[((inc.contactName||inc.name||'')+'|'+(inc.company||inc.name||'')).toLowerCase()];
+  if(ex){
+   var logs=(ex.contactLog||[]).concat(inc.contactLog||[]);
+   var seen={},merged=[];logs.forEach(function(l){var k=((l&&l.d)||'')+'|'+((l&&l.t)||'');if(l&&!seen[k]){seen[k]=1;merged.push(l);}});
+   var st=(stageIdx(inc.stage)>=stageIdx(ex.stage))?inc.stage:ex.stage;
+   Object.assign(ex,inc);ex.contactLog=merged;ex.stage=st;updated++;
+  }else{data.push(inc);added++;}
+ });
+ save();return {added:added,updated:updated};
+}
+document.getElementById("syncBtn").onclick=function(){document.getElementById("syncFile").click();};
+document.getElementById("syncFile").onchange=function(e){var f=e.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(){var arr;try{arr=JSON.parse(rd.result);}catch(err){alert("That isn't a valid backup .json file.");return;}if(!Array.isArray(arr)){alert("That file isn't a prospect backup (expected a .json list).");return;}var r=mergeIn(arr);render();alert("Synced ✓  "+r.updated+" updated, "+r.added+" added. Nothing was removed.");};rd.readAsText(f);e.target.value="";};
 document.querySelectorAll('.tab').forEach(function(t){t.onclick=function(){view=t.dataset.v;document.querySelectorAll('.tab').forEach(function(x){x.classList.toggle('on',x===t);});render();};});
 document.getElementById("search").addEventListener("input",render);
 window.addEventListener("storage",function(e){if(e.key===KEY)render();});
