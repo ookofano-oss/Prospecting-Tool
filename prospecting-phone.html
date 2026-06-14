@@ -11,7 +11,6 @@
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black" />
 <meta name="apple-mobile-web-app-title" content="Prospects" />
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{--bg:#0f141c;--panel:#171e29;--ink:#e6ecf5;--muted:#9aa6b6;--line:#2a3340;--brand:#3b82f6;--ok:#10b981;--hot:#e0457b;--warn:#d4a017}
@@ -179,7 +178,12 @@ function statsHtml(){
  return head+cov+charts;
 }
 
-var chF=null,chS=null;
+var chF=null,chS=null,_chartTried=false;
+function ensureChart(cb){
+ if(typeof Chart!=="undefined"){cb();return;}
+ if(_chartTried){return;}_chartTried=true;
+ var s=document.createElement('script');s.src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js";s.onload=function(){cb();};s.onerror=function(){};document.head.appendChild(s);
+}
 function drawCharts(){
  if(typeof Chart==="undefined")return;
  var act=activeList();
@@ -210,7 +214,7 @@ function _render(){
   sw.style.display="none";
   if(!data.length){el.innerHTML='<div class="empty">No data on this device yet. Open the full web app on this phone and use Sync.</div>';return;}
   el.innerHTML=statsHtml();
-  requestAnimationFrame(drawCharts);
+  requestAnimationFrame(function(){ensureChart(drawCharts);});
  }
 }
 
@@ -246,15 +250,22 @@ function exportData(){
  var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([txt],{type:"application/json"}));a.download=fn;document.body.appendChild(a);a.click();a.remove();
  alert("Saved "+fn+". Choose 'Save to Files' → your OneDrive folder, then Sync it on the computer.");
 }
-document.getElementById("exportBtn").onclick=exportData;
-document.getElementById("syncBtn").onclick=function(){document.getElementById("syncFile").click();};
-document.getElementById("syncFile").onchange=function(e){var f=e.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(){var arr;try{arr=JSON.parse(rd.result);}catch(err){alert("That isn't a valid backup .json file.");return;}if(!Array.isArray(arr)){alert("That file isn't a prospect backup (expected a .json list).");return;}var r=mergeIn(arr);render();alert("Synced ✓  "+r.updated+" updated, "+r.added+" added. Nothing was removed.");};rd.readAsText(f);e.target.value="";};
-document.querySelectorAll('.tab').forEach(function(t){t.onclick=function(){view=t.dataset.v;document.querySelectorAll('.tab').forEach(function(x){x.classList.toggle('on',x===t);});render();};});
-document.getElementById("search").addEventListener("input",render);
-window.addEventListener("storage",function(e){if(e.key===KEY)render();});
-window.addEventListener("pageshow",render);
-window.addEventListener("focus",render);
-render();
+function boot(){
+ try{
+  var by=function(id){return document.getElementById(id);};
+  if(by("exportBtn"))by("exportBtn").onclick=exportData;
+  if(by("syncBtn"))by("syncBtn").onclick=function(){if(by("syncFile"))by("syncFile").click();};
+  if(by("syncFile"))by("syncFile").onchange=function(e){var f=e.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(){var arr;try{arr=JSON.parse(rd.result);}catch(err){alert("That isn't a valid backup .json file.");return;}if(!Array.isArray(arr)){alert("That file isn't a prospect backup (expected a .json list).");return;}var r=mergeIn(arr);render();alert("Synced ✓  "+r.updated+" updated, "+r.added+" added. Nothing was removed.");};rd.readAsText(f);e.target.value="";};
+  var tabs=document.querySelectorAll('.tab');
+  for(var i=0;i<tabs.length;i++){(function(t){t.onclick=function(){view=t.getAttribute('data-v');var all=document.querySelectorAll('.tab');for(var j=0;j<all.length;j++)all[j].classList.toggle('on',all[j]===t);render();};})(tabs[i]);}
+  if(by("search"))by("search").addEventListener("input",render);
+  window.addEventListener("storage",function(e){if(e.key===KEY)render();});
+  window.addEventListener("pageshow",render);
+  window.addEventListener("focus",render);
+  render();
+ }catch(err){var el=document.getElementById("list");if(el)el.innerHTML='<div class="empty">Startup error: '+((err&&err.message)?(''+err.message):(''+err))+'</div>';}
+}
+if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
 </script>
 </body>
 </html>
