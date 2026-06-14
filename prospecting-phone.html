@@ -72,6 +72,7 @@ header .sub{font-size:12px;color:var(--muted);margin-top:2px}
 <header>
   <div style="display:flex;align-items:center;gap:10px">
     <div style="flex:1;min-width:0"><h1>Prospects</h1><div class="sub" id="hsub"></div></div>
+    <button id="exportBtn" class="syncbtn">⤴ Export</button>
     <button id="syncBtn" class="syncbtn">⟲ Sync</button>
   </div>
 </header>
@@ -228,6 +229,22 @@ function mergeIn(arr){
  });
  save();return {added:added,updated:updated};
 }
+function exportData(){
+ load();
+ if(!data.length){alert("No data to export yet — Sync some in first.");return;}
+ var fn="prospects-phone-"+today()+".json";
+ var txt=JSON.stringify(data);
+ try{
+  var file=new File([txt],fn,{type:"application/json"});
+  if(navigator.canShare&&navigator.canShare({files:[file]})){
+   navigator.share({files:[file],title:"Prospect data"}).catch(function(){});
+   return;
+  }
+ }catch(e){}
+ var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([txt],{type:"application/json"}));a.download=fn;document.body.appendChild(a);a.click();a.remove();
+ alert("Saved "+fn+". Choose 'Save to Files' → your OneDrive folder, then Sync it on the computer.");
+}
+document.getElementById("exportBtn").onclick=exportData;
 document.getElementById("syncBtn").onclick=function(){document.getElementById("syncFile").click();};
 document.getElementById("syncFile").onchange=function(e){var f=e.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(){var arr;try{arr=JSON.parse(rd.result);}catch(err){alert("That isn't a valid backup .json file.");return;}if(!Array.isArray(arr)){alert("That file isn't a prospect backup (expected a .json list).");return;}var r=mergeIn(arr);render();alert("Synced ✓  "+r.updated+" updated, "+r.added+" added. Nothing was removed.");};rd.readAsText(f);e.target.value="";};
 document.querySelectorAll('.tab').forEach(function(t){t.onclick=function(){view=t.dataset.v;document.querySelectorAll('.tab').forEach(function(x){x.classList.toggle('on',x===t);});render();};});
