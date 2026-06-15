@@ -1011,7 +1011,7 @@ function drawRows(){
    <td><small>${esc(p.industry||"—")}</small></td>
    <td><span class="pill seg-${sg}">${esc(p.segment.split(" ")[0])}</span></td>
    <td>${esc(p.stage)}</td>
-   <td><div class="name"><a class="glink" href="https://www.google.com/search?q=${encodeURIComponent(p.name+' Kenya')}" target="_blank" rel="noopener">${esc(p.name)}</a><small>${esc(p.role||"")}${p.group?` &middot; <b style="color:#6d28d9">${esc(p.group)}</b>`:""}${p.outcome?` <span class="otag ${p.outcome==='Existing Client'?'client':'no'}">${esc(p.outcome)}</span>`:""}${p.archived?' 📥':''}${p.archived&&p.archiveReason?` <i style="color:var(--muted)">— ${esc(p.archiveReason)}</i>`:""}${p.followUp?` &middot; <span style="color:${p.followUp<=todayStr?'#c0392b':'var(--muted)'};font-weight:600">📅 ${esc(p.followUp)}</span>`:""}${(p.tags&&p.tags.length)?' '+p.tags.map(t=>'<span class="tagchip">'+esc(t)+'</span>').join(''):''}</small></div></td>
+   <td><div class="name"><a class="glink" href="https://www.google.com/search?q=${encodeURIComponent(p.name+' Kenya')}" target="_blank" rel="noopener">${esc(p.name)}</a><small>${esc(p.role||"")}${p.group?` &middot; <b style="color:#6d28d9">${esc(p.group)}</b>`:""}${p.followUp?` &middot; <span style="color:${p.followUp<=todayStr?'#c0392b':'var(--muted)'};font-weight:600">📅 ${esc(p.followUp)}</span>`:""}${(p.tags&&p.tags.length)?' '+p.tags.map(t=>'<span class="tagchip">'+esc(t)+'</span>').join(''):''}${(p.outcome||p.archived)?'<br>':''}${p.outcome?`<span class="otag ${p.outcome==='Existing Client'?'client':'no'}" style="white-space:nowrap">${esc(p.outcome)}</span>`:""}${p.archived?' 📥':''}${p.archived&&p.archiveReason?` <i style="color:var(--muted)">— ${esc(p.archiveReason)}</i>`:""}</small></div></td>
    <td><div class="score-wrap" style="gap:7px">${ring(completion(p),p.outcome==="Not Interested"?"#dc2626":"")}<b>${completion(p)}%</b></div></td>
    <td><div class="rowact">${(p.done||p.archived)?`<button class="iconbtn" data-act="restore" data-id="${p.id}">Restore</button>`:""}<button class="iconbtn" data-act="brief" data-id="${p.id}">Profile</button><button class="iconbtn" data-act="find" data-id="${p.id}">Finder</button>${linkedInIcon(p)}${contactIcons(p)}</div></td>
   </tr>`;
@@ -1444,23 +1444,24 @@ function mergeData(incoming){
  incoming.forEach(function(inc){
   if(!inc||!inc.name)return;
   var incC=(''+(inc.contactName||'')).toLowerCase().trim();
-  var loc=data.find(function(p){return mergeMatch(p.name,inc.name)&&(''+(p.contactName||'')).toLowerCase().trim()===incC;});
+  var loc=(inc.id&&data.find(function(p){return p.id===inc.id;}))||data.find(function(p){return mergeMatch(p.name,inc.name)&&(''+(p.contactName||'')).toLowerCase().trim()===incC;});
   if(!loc){if(hasContact(inc)&&(!inc.stage||inc.stage==="To Research"||inc.stage==="Researching"))inc.stage="Contact Found";data.unshift(inc);added++;return;}
-  ['industry','segment','group','role','contactName','contactTitle','email','phone','generalEmail','link','website','outcome','archiveReason'].forEach(function(f){if((!loc[f]||!(''+loc[f]).trim())&&inc[f]&&(''+inc[f]).trim())loc[f]=inc[f];});
-  if(inc.email&&loc.email&&(''+inc.email).toLowerCase().trim()!==(''+loc.email).toLowerCase().trim())loc.extraEmails=(loc.extraEmails||[]).concat([inc.email]);
-  if(inc.phone&&loc.phone&&normPhone(inc.phone)!==normPhone(loc.phone))loc.extraPhones=(loc.extraPhones||[]).concat([inc.phone]);
-  loc.extraEmails=_uniqStr((loc.extraEmails||[]).concat(inc.extraEmails||[])).filter(function(e){return e.toLowerCase()!==(''+(loc.email||'')).toLowerCase();});
-  loc.extraPhones=_uniqStr((loc.extraPhones||[]).concat(inc.extraPhones||[])).filter(function(e){return normPhone(e)!==normPhone(loc.phone||'');});
-  loc.verified=loc.verified||inc.verified;
-  loc.phoneManual=loc.phoneManual||inc.phoneManual;
-  loc.responded=loc.responded||inc.responded;
-  if(stageIdx(inc.stage)>stageIdx(loc.stage))loc.stage=inc.stage;
+  // --- additive merges (computed before the overwrite so nothing is ever lost) ---
+  var seen={},log=[];(loc.contactLog||[]).concat(inc.contactLog||[]).forEach(function(e){if(!e)return;var k=(e.d||'')+'|'+(e.t||'');if(!seen[k]){seen[k]=1;log.push(e);}});
+  var allEm=_uniqStr([inc.email,loc.email].concat(inc.extraEmails||[]).concat(loc.extraEmails||[]).filter(function(x){return x&&(''+x).trim();}));
+  var seenP={},allPh=[];[inc.phone,loc.phone].concat(inc.extraPhones||[]).concat(loc.extraPhones||[]).forEach(function(x){var n=x?normPhone(x):'';if(n&&!seenP[n]){seenP[n]=1;allPh.push(n);}});
+  var shots=_uniqStr((loc.shots||[]).concat(inc.shots||[]));
+  var laterLC=((inc.lastContacted||'')>(loc.lastContacted||''))?inc.lastContacted:loc.lastContacted;
+  var maxStage=(stageIdx(inc.stage)>stageIdx(loc.stage))?inc.stage:loc.stage;
+  // --- the synced file wins for every other field it carries (so all edits/criteria appear) ---
+  Object.keys(inc).forEach(function(f){if(inc[f]!==undefined&&inc[f]!==null)loc[f]=inc[f];});
+  // --- restore the merged/derived values on top of the overwrite ---
+  loc.contactLog=log;
+  loc.email=allEm[0]||'';loc.extraEmails=allEm.slice(1);
+  loc.phone=allPh[0]||'';loc.extraPhones=allPh.slice(1);loc.phoneManual=!!loc.phone;
+  if(shots.length)loc.shots=shots;
+  loc.lastContacted=laterLC;loc.stage=maxStage;
   if(hasContact(loc)&&(loc.stage==="To Research"||loc.stage==="Researching"))loc.stage="Contact Found";
-  if(inc.archived&&!loc.archived)loc.archived=true;
-  if(inc.shots&&inc.shots.length)loc.shots=_uniqStr((loc.shots||[]).concat(inc.shots));
-  if(inc.contactLog&&inc.contactLog.length){var seen={},out=[];(loc.contactLog||[]).concat(inc.contactLog).forEach(function(e){if(!e)return;var k=(e.d||'')+'|'+(e.t||'');if(!seen[k]){seen[k]=1;out.push(e);}});loc.contactLog=out;}
-  var ld=loc.lastContacted||'',ic=inc.lastContacted||'';if(ic>ld)loc.lastContacted=ic;
-  if(inc.notes&&(''+inc.notes).trim()&&(''+(loc.notes||'')).indexOf((''+inc.notes).trim())<0)loc.notes=((loc.notes&&loc.notes.trim()?loc.notes.trim()+"\n":"")+(''+inc.notes).trim());
   updated++;
  });
  return {added:added,updated:updated};
