@@ -171,10 +171,10 @@ function statsHtml(){
  var emN=act.filter(hasEmail).length, phN=act.filter(phoneFound).length;
  var head='<div class="kpis" style="padding-top:0"><div class="kpi"><div class="v">'+covered+' / '+INDUSTRIES.length+'</div><div class="l">Industries covered</div></div>'
    +'<div class="kpi"><div class="v">'+contacts+'</div><div class="l">Direct contacts</div></div>'
-   +'<div class="kpi"><div class="v" style="font-size:14px;padding-top:5px">✉ '+emN+'  ☎ '+phN+'</div><div class="l">Reachable</div></div></div>';
+   +'<div class="kpi"><div class="v">'+phN+'</div><div class="l">With a phone</div></div></div>';
  var cov='<div class="statsec">Industry coverage map</div><div class="note">'+worked+' of '+INDUSTRIES.length+' sectors fully worked 🎯</div><div class="cov">'+INDUSTRIES.map(function(i){
    var n=counts[i],pct=n?Math.round(dc[i]/n*100):0;
-   return '<div class="sect"><div class="sn"><span>'+esc(i)+'</span><b>'+dc[i]+'/'+n+'</b></div><div class="sv">'+n+'</div><div class="chips"><span class="chip">✉ '+em[i]+'</span><span class="chip">☎ '+ph[i]+'</span></div><div class="bar"><i style="width:'+pct+'%"></i></div></div>';
+   return '<div class="sect"><div class="sn"><span>'+esc(i)+'</span><b>'+dc[i]+'/'+n+'</b></div><div class="sv">'+n+'</div><div class="chips"><span class="chip">☎ '+ph[i]+'</span></div><div class="bar"><i style="width:'+pct+'%"></i></div></div>';
  }).join('')+'</div>';
  var charts='<div class="chartbox"><h3>Research funnel</h3><div class="cv"><canvas id="cFunnel"></canvas></div></div>'
    +'<div class="chartbox"><h3>Prospects by segment</h3><div class="cv"><canvas id="cSeg"></canvas></div></div>';
