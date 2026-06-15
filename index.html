@@ -76,6 +76,12 @@ header .sub{font-size:12px;color:var(--muted);margin-top:2px}
 .icard .iacts button{flex:1;background:transparent;border:none;color:var(--brand);padding:9px;font-size:12px;font-weight:650}
 .icard .iacts button.del{color:var(--hot);border-left:1px solid var(--line)}
 .takebtn{display:block;width:calc(100% - 32px);margin:2px 16px 12px;padding:14px;font-size:15px;font-weight:700;border:1px solid var(--brand);background:var(--brand);color:#fff;border-radius:13px}
+.modalbg{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:60;display:none;align-items:flex-end;justify-content:center}
+.modalcard{background:var(--panel);border:1px solid var(--line);border-radius:18px 18px 0 0;width:100%;max-width:560px;padding:14px 14px calc(16px + env(safe-area-inset-bottom));max-height:90vh;overflow:auto}
+.modalcard .mh{font-weight:750;font-size:16px;margin:2px 4px 12px}
+.copts{display:flex;flex-direction:column;gap:8px}
+.copts button{width:100%;text-align:left;padding:13px 14px;border:1px solid var(--line);background:#1c2531;color:var(--ink);border-radius:11px;font-size:14.5px;font-weight:600}
+.ccancel{width:100%;margin-top:10px;padding:12px;border:none;background:transparent;color:var(--muted);font-size:14px;font-weight:650}
 </style>
 </head>
 <body>
@@ -90,6 +96,26 @@ header .sub{font-size:12px;color:var(--muted);margin-top:2px}
 <input type="file" id="syncFile" accept=".json,application/json" style="display:none" />
 <input type="file" id="ideaFile" accept="image/*" capture="environment" style="display:none" />
 <div id="ideaLight" onclick="this.style.display='none'" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.93);z-index:50;align-items:center;justify-content:center;padding:14px"><img id="ideaLightImg" style="max-width:100%;max-height:100%;border-radius:8px" /></div>
+<div id="callBg" class="modalbg" onclick="if(event.target===this)closeCall()">
+  <div class="modalcard">
+    <div class="mh">How did the call go?<span id="callWho" style="color:var(--muted);font-weight:500"></span></div>
+    <div class="copts">
+      <button onclick="applyCall('no_answer')">No answer</button>
+      <button onclick="applyCall('line_busy')">Line busy</button>
+      <button onclick="applyCall('line_failed')">Line didn't go through</button>
+      <button onclick="applyCall('gatekeeper')">Gatekeeper</button>
+      <button onclick="applyCall('call_later')">In a meeting — call later</button>
+      <button onclick="applyCall('cut')">Cut the call</button>
+      <button onclick="applyCall('send_info')">Spoke — send info (email/WhatsApp)</button>
+      <button onclick="applyCall('meeting')">Asked for a meeting</button>
+      <button onclick="applyCall('how_number')">"How did you get my number?"</button>
+      <button onclick="applyCall('has_advisor')">OK with current advisor</button>
+      <button onclick="applyCall('not_interested')">Not interested</button>
+      <button onclick="applyCall('do_not_call')">Negative — don't call again</button>
+    </div>
+    <button class="ccancel" onclick="closeCall()">Cancel — don't record</button>
+  </div>
+</div>
 <div class="kpis" id="kpis"></div>
 <div class="tabs">
   <div class="tab" data-v="stats">Stats</div>
@@ -127,7 +153,21 @@ function company(p){return p.company||p.name||'';}
 function liHref(p){var l=(''+(p.link||'')).trim();if(/linkedin\.com/i.test(l))return l;return "https://www.linkedin.com/search/results/all/?keywords="+encodeURIComponent(who(p)+' '+(company(p)||''));}
 function segLabel(p){var s=p.segment||'';if(/HNW/i.test(s))return 'HNWI';if(/Institution/i.test(s))return 'Institution';if(/Corporate/i.test(s))return 'Corporate / SME';if(/Business Owner|Brand/i.test(s))return 'Business Owner';if(/CEO|Management/i.test(s))return 'CEO / Mgmt';return s||'Individual';}
 function subLine(p){var co=(company(p)||'').trim(),nm=(who(p)||'').trim();if(co&&co.toLowerCase()!==nm.toLowerCase())return esc(co);return '<span class="cat">'+esc(segLabel(p))+'</span>';}
-function logCall(id){var p=byId(id);if(!p)return;var iso=today();if(!p.contactLog)p.contactLog=[];p.contactLog.push({d:iso,t:"Call"});p.lastContacted=iso;if(p.stage==="To Research"||p.stage==="Researching"||p.stage==="Contact Found")p.stage="Contacted";save();setTimeout(render,400);}
+var CALL_LABELS={no_answer:"No answer",line_busy:"Line busy",line_failed:"Line didn't go through",gatekeeper:"Gatekeeper",call_later:"In meeting / call later",cut:"Cut the call",not_interested:"Not interested",has_advisor:"Has current advisor",do_not_call:"Negative — do not call",how_number:"Queried number source",send_info:"Spoke — send info",meeting:"Asked for a meeting"};
+function plusDays(n){var d=new Date();d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
+var callId=null;
+function callPrompt(id){callId=id;var p=byId(id);var w=document.getElementById("callWho");if(w)w.textContent=p?(" — "+who(p)):"";var bg=document.getElementById("callBg");if(bg)bg.style.display="flex";}
+function closeCall(){var bg=document.getElementById("callBg");if(bg)bg.style.display="none";callId=null;}
+function applyCall(k){var p=byId(callId);if(!p){closeCall();return;}var iso=today();if(!p.contactLog)p.contactLog=[];p.contactLog.push({d:iso,t:"Call — "+(CALL_LABELS[k]||"call")});p.lastContacted=iso;
+ if(stageIdx(p.stage)<stageIdx("Contacted")&&p.stage!=="Signed")p.stage="Contacted";
+ var FU={no_answer:2,line_busy:1,line_failed:2,gatekeeper:3,call_later:3,cut:2,send_info:2};
+ if(FU[k])p.followUp=plusDays(FU[k]);
+ if(k==="send_info"){p.responded=true;p.respondedDate=iso;if(stageIdx(p.stage)<stageIdx("Response Received"))p.stage="Response Received";}
+ if(k==="meeting"){p.responded=true;p.respondedDate=iso;if(stageIdx(p.stage)<stageIdx("Meeting"))p.stage="Meeting";}
+ if(k==="not_interested"||k==="has_advisor"){p.outcome="Not Interested";}
+ if(k==="do_not_call"){p.outcome="Not Interested";p.archived=true;p.archiveReason="Do not call";}
+ save();closeCall();render();
+}
 
 function kpis(){
  var act=activeList(),t=today();
@@ -168,7 +208,7 @@ function rowHtml(p,reason,cls){
    +(pos?'<div class="pos">'+esc(pos)+'</div>':'')
   +'</div><div class="acts">'
    +'<a class="btn li" href="'+liHref(p)+'" target="_blank" rel="noopener">in</a>'
-   +'<a class="btn call'+(canCall?'':' off')+'"'+(canCall?' href="tel:'+esc(num.replace(/[^0-9+]/g,''))+'" onclick="logCall(\''+p.id+'\')"':'')+'>☎</a>'
+   +'<a class="btn call'+(canCall?'':' off')+'"'+(canCall?' href="tel:'+esc(num.replace(/[^0-9+]/g,''))+'" onclick="callPrompt(\''+p.id+'\')"':'')+'>☎</a>'
   +'</div></div>';
 }
 
