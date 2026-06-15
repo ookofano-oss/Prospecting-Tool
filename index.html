@@ -73,7 +73,7 @@ header .sub{font-size:12px;color:var(--muted);margin-top:2px}
 <header>
   <div style="display:flex;align-items:center;gap:10px">
     <div style="flex:1;min-width:0"><h1>Prospects</h1><div class="sub" id="hsub"></div></div>
-    <button id="refreshBtn" class="syncbtn" title="Load the latest version">⟳</button>
+    <button id="refreshBtn" class="syncbtn" title="Load the latest version" style="font-size:21px;line-height:1;padding:5px 12px">⟳</button>
     <button id="exportBtn" class="syncbtn">⤴ Export</button>
     <button id="syncBtn" class="syncbtn">⟲ Sync</button>
   </div>
@@ -198,7 +198,7 @@ function drawCharts(){
  if(elS){if(chS)chS.destroy();chS=new Chart(elS,{type:"doughnut",data:{labels:SEGMENTS,datasets:[{data:sc,backgroundColor:SEGCOL,borderWidth:0}]},options:{plugins:{legend:{position:"bottom",labels:{color:"#9aa6b6",boxWidth:12,font:{size:11}}}},cutout:"58%",maintainAspectRatio:false}});}
 }
 
-var view="today";
+var view=(function(){try{return localStorage.getItem("phoneView")||"stats";}catch(e){return "stats";}})();
 function render(){try{_render();}catch(err){var el=document.getElementById("list");if(el)el.innerHTML='<div class="empty">Couldn\'t render: '+((err&&err.message)?(''+err.message):(''+err))+'</div>';}}
 function _render(){
  load();kpis();
@@ -261,7 +261,8 @@ function boot(){
   if(by("syncBtn"))by("syncBtn").onclick=function(){if(by("syncFile"))by("syncFile").click();};
   if(by("syncFile"))by("syncFile").onchange=function(e){var f=e.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(){var arr;try{arr=JSON.parse(rd.result);}catch(err){alert("That isn't a valid backup .json file.");return;}if(!Array.isArray(arr)){alert("That file isn't a prospect backup (expected a .json list).");return;}var r=mergeIn(arr);render();alert("Synced ✓  "+r.updated+" updated, "+r.added+" added. Nothing was removed.");};rd.readAsText(f);e.target.value="";};
   var tabs=document.querySelectorAll('.tab');
-  for(var i=0;i<tabs.length;i++){(function(t){t.onclick=function(){view=t.getAttribute('data-v');var all=document.querySelectorAll('.tab');for(var j=0;j<all.length;j++)all[j].classList.toggle('on',all[j]===t);render();};})(tabs[i]);}
+  for(var i=0;i<tabs.length;i++){(function(t){t.onclick=function(){view=t.getAttribute('data-v');try{localStorage.setItem("phoneView",view);}catch(e){}var all=document.querySelectorAll('.tab');for(var j=0;j<all.length;j++)all[j].classList.toggle('on',all[j]===t);render();};})(tabs[i]);}
+  for(var k=0;k<tabs.length;k++)tabs[k].classList.toggle('on',tabs[k].getAttribute('data-v')===view);
   if(by("search"))by("search").addEventListener("input",render);
   window.addEventListener("storage",function(e){if(e.key===KEY)render();});
   window.addEventListener("pageshow",render);
