@@ -89,6 +89,10 @@ button.ghost{background:transparent}
 .bdrow{padding:9px 10px;border-bottom:1px solid var(--line);cursor:pointer}
 .bdrow:hover{background:#fafbfc}
 .bdrow b{font-weight:600}
+.bdname{font-weight:600;color:var(--ink);text-decoration:none;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bdname:hover{color:var(--brand);text-decoration:underline}
+.bdedit{flex-shrink:0;background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:7px;padding:2px 8px;font-size:13px;cursor:pointer}
+.bdedit:hover{border-color:var(--brand);color:var(--brand)}
 .bdrow small{display:block;color:var(--muted);font-size:11.5px;margin-top:1px}
 [data-theme="dark"] .bdrow:hover{background:#1d2634}
 .kpi .label{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
@@ -469,6 +473,19 @@ label.fld span b{color:var(--ink);font-weight:600}
   </div>
 </div>
 
+<!-- Quick edit (email/phone only) modal -->
+<div class="modal-bg" id="qeBg">
+  <div class="modal" style="max-width:380px">
+    <header><h2>Edit email / phone</h2><button class="ghost" id="qeClose">✕</button></header>
+    <div class="body" style="grid-template-columns:1fr;gap:11px">
+      <div class="hint" id="qeWho" style="font-weight:600"></div>
+      <div><label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Email(s) — separate with commas</label><textarea id="qeEmail" rows="2" placeholder="name@company.com, second@company.com" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);margin-top:5px;font-family:inherit;resize:vertical"></textarea></div>
+      <div><label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Phone(s) — separate with commas</label><textarea id="qePhone" rows="2" placeholder="0722…, 020…" style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);margin-top:5px;font-family:inherit;resize:vertical"></textarea></div>
+    </div>
+    <footer><span style="flex:1"></span><button class="ghost" id="qeCancel">Cancel</button><button class="primary" id="qeSave">Save</button></footer>
+  </div>
+</div>
+
 <!-- Archive reason modal -->
 <div class="modal-bg" id="arcBg">
   <div class="modal" style="max-width:420px">
@@ -582,11 +599,17 @@ label.fld span b{color:var(--ink);font-weight:600}
     <div class="body" style="grid-template-columns:1fr;gap:8px">
       <div class="hint" id="callWho" style="margin-bottom:2px"></div>
       <button class="ghost callopt" data-k="no_answer">📵 No answer</button>
-      <button class="ghost callopt" data-k="not_service">⚠ Number not in service</button>
+      <button class="ghost callopt" data-k="line_busy">📞 Line busy</button>
+      <button class="ghost callopt" data-k="line_failed">⚠ Line didn't go through</button>
       <button class="ghost callopt" data-k="gatekeeper">🚪 Gatekeeper</button>
-      <button class="ghost callopt" data-k="later">⏰ Call later</button>
-      <button class="ghost callopt" data-k="email">✉ Send an email</button>
+      <button class="ghost callopt" data-k="call_later">⏰ In meeting / call later</button>
+      <button class="ghost callopt" data-k="cut">✂ Cut the call</button>
+      <button class="ghost callopt" data-k="send_info">✉ Spoke — send info (email/WhatsApp)</button>
+      <button class="ghost callopt" data-k="meeting">🤝 Asked for a meeting</button>
+      <button class="ghost callopt" data-k="how_number">❓ "How did you get my number?"</button>
+      <button class="ghost callopt" data-k="has_advisor">🧭 OK with current advisor</button>
       <button class="ghost callopt" data-k="not_interested">🚫 Not interested</button>
+      <button class="ghost callopt" data-k="do_not_call">⛔ Negative — don't call again</button>
     </div>
   </div>
 </div>
@@ -613,10 +636,10 @@ const segClass=s=>s.startsWith("HNW")?"HNW":s.startsWith("Corporate")?"Corporate
 const score=p=>Math.round(((p.w*W.w+p.fit*W.fit+p.acc*W.acc+p.trg*W.trg)/5)*100);
 const tier=s=>s>=75?"A":s>=50?"B":"C";
 const STAGEPCT={"To Research":0,"Researching":0,"Contact Found":20,"Contacted":40,"Response Received":50,"Meeting":60,"Proposal":80,"Signed":100,"Archived":0};
-function completion(p){var pct=STAGEPCT[p.stage]!=null?STAGEPCT[p.stage]:0;if(p.stage==="Contact Found"&&!hasContact(p))pct=0;return pct;}
-function ring(pct){var r=9,c=2*Math.PI*r,off=c*(1-pct/100);return '<svg width="28" height="28" viewBox="0 0 28 28" style="flex:none"><circle cx="14" cy="14" r="9" fill="none" stroke="var(--line)" stroke-width="3.5"/><circle cx="14" cy="14" r="9" fill="none" stroke="'+(pct>=100?"var(--a)":"var(--brand)")+'" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="'+c+'" stroke-dashoffset="'+off+'" transform="rotate(-90 14 14)"/></svg>';}
+function completion(p){if(p.outcome==="Not Interested"||p.done)return 100;var pct=STAGEPCT[p.stage]!=null?STAGEPCT[p.stage]:0;if(p.stage==="Contact Found"&&!hasContact(p))pct=0;return pct;}
+function ring(pct,color){var r=9,c=2*Math.PI*r,off=c*(1-pct/100);return '<svg width="28" height="28" viewBox="0 0 28 28" style="flex:none"><circle cx="14" cy="14" r="9" fill="none" stroke="var(--line)" stroke-width="3.5"/><circle cx="14" cy="14" r="9" fill="none" stroke="'+(color||(pct>=100?"var(--a)":"var(--brand)"))+'" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="'+c+'" stroke-dashoffset="'+off+'" transform="rotate(-90 14 14)"/></svg>';}
 const phoneFound=p=>!!((p.phone&&(''+p.phone).trim()&&p.phoneManual)||((p.extraPhones||[]).some(e=>e&&(''+e).trim())));
-const hasContact=p=>!!((p.email&&(''+p.email).trim())||((p.extraEmails||[]).some(e=>e&&(''+e).trim()))||phoneFound(p));
+const hasContact=p=>!!((p.contactName&&(''+p.contactName).trim())&&((p.email&&(''+p.email).trim())||((p.extraEmails||[]).some(e=>e&&(''+e).trim()))||phoneFound(p)));
 const uid=()=>Math.random().toString(36).slice(2,9);
 const normInd=v=>{v=(v||"").trim();if(!v)return"";var lv=v.toLowerCase();return INDUSTRIES.find(i=>i.toLowerCase()===lv)||INDUSTRIES.find(i=>i.toLowerCase().includes(lv)&&lv.length>3)||"Professional Services";};
 const normSeg=v=>{v=(v||"").trim().toLowerCase();if(v.includes("hnw")||v.includes("individual"))return"HNW Individual";if(v.includes("inst"))return"Institution";if(v.includes("owner")||v.includes("brand"))return"Business Owner / Brand";return"Corporate / SME";};
@@ -709,7 +732,7 @@ function drawCharts(){
 }
 
 /* ---------- KPIs ---------- */
-function hotLead(p){if(p.archived||p.stage==="Archived"||p.stage==="Signed")return false;return !!(p.responded||stageIdx(p.stage)>=stageIdx("Response Received"));}
+function hotLead(p){if(p.archived||p.stage==="Archived"||p.stage==="Signed"||p.outcome==="Not Interested")return false;return !!(p.responded||stageIdx(p.stage)>=stageIdx("Response Received"));}
 function findDuplicates(){
  var ps=data.filter(function(p){return !p.archived&&p.stage!=="Archived";});
  var parent={};ps.forEach(function(p){parent[p.id]=p.id;});
@@ -763,7 +786,8 @@ function emailAllTop(){
  if(!confirm("Open "+list.length+" intro email draft(s) — one personalised draft per top prospect?"))return;
  list.forEach(function(p){var a=document.createElement('a');a.href=mailHrefFor(p);a.style.display='none';document.body.appendChild(a);a.click();a.remove();});
 }
-function introPending(){return data.filter(function(p){return !p.archived&&p.stage!=="Archived"&&!p.introSent&&sendAddr(p);});}
+function contactedToday(p){var t=new Date().toISOString().slice(0,10);return (p.lastContacted===t)||((p.contactLog||[]).some(function(e){return e&&e.d===t;}))||(p.introSent===t);}
+function introPending(){return data.filter(function(p){return p.outcome!=="Not Interested"&&!p.archived&&p.stage!=="Archived"&&!p.introSent&&!contactedToday(p)&&sendAddr(p);});}
 function emailIntroNew(){
  var pending=introPending();
  if(!pending.length){alert("No new prospects to introduce — everyone with an email has already had the intro. New ones will appear here as you add or import them.");return;}
@@ -797,7 +821,7 @@ function blastIntroDraft(p){
  if(!/(kind regards|best regards|regards,|fano jaoko)/i.test(body))body+=EMAIL_SIGN;
  return {s:subj,b:body};
 }
-function blastIntroHrefFor(p){var tpl=blastIntroDraft(p);return 'mailto:'+esc(sendAddr(p))+'?subject='+encodeURIComponent(tpl.s)+'&body='+encodeURIComponent(tpl.b);}
+function blastIntroHrefFor(p){var to=sendAddr(p),tpl=blastIntroDraft(p);var others=[],seen={};if(to)seen[to.toLowerCase()]=1;[p.email,p.generalEmail].concat(p.extraEmails||[]).forEach(function(x){var e=(''+(x||'')).trim(),k=e.toLowerCase();if(e&&e.indexOf('@')>0&&!seen[k]){seen[k]=1;others.push(e);}});var qp='';if(others.length)qp+='cc='+encodeURIComponent(others.join(','))+'&';qp+='subject='+encodeURIComponent(tpl.s)+'&body='+encodeURIComponent(tpl.b);return 'mailto:'+esc(to)+'?'+qp;}
 function blastIntroPending(){return data.filter(function(p){return p.outcome!=="Not Interested"&&!p.archived&&p.stage!=="Archived"&&!p.introSent&&sendAddr(p);});}
 function blastIntroNow(){
  var ut={};try{ut=JSON.parse(localStorage.getItem("emailTpl")||"{}");}catch(e){}
@@ -810,7 +834,7 @@ function blastIntroNow(){
  if(!confirm("Are you sure? This opens "+batch.length+" intro draft(s) and marks those clients as introduced.\n\n(Misclick? Use “Undo last Blast Intro”, and you can still just close the drafts without sending.)"))return;
  var today=new Date().toISOString().slice(0,10);
  var snap=batch.map(function(p){return {id:p.id,introSent:p.introSent||null,stage:p.stage};});
- batch.forEach(function(p){var a=document.createElement('a');a.href=blastIntroHrefFor(p);a.style.display='none';document.body.appendChild(a);a.click();a.remove();p.introSent=today;logContact(p,"Intro (blast)");advContacted(p);});
+ batch.forEach(function(p){var a=document.createElement('a');a.href=blastIntroHrefFor(p);a.style.display='none';document.body.appendChild(a);a.click();a.remove();p.introSent=today;logContact(p,"Intro email (blast)");advContacted(p);});
  var u={date:today,items:snap};var prev;try{prev=JSON.parse(localStorage.getItem("blastIntroUndo")||"null");}catch(e){prev=null;}
  if(prev&&prev.items&&prev.date===today){u.items=prev.items.concat(snap);}
  localStorage.setItem("blastIntroUndo",JSON.stringify(u));
@@ -919,14 +943,17 @@ function callPrompt(id){setTimeout(function(){callId=id;var p=data.find(x=>x.id=
 function closeCall(){callBg.classList.remove("open");}
 function emailDraftFor(p){var e=(''+(p.email||'')).trim();if(!e){alert("No direct email on file for "+(p.name||"this prospect")+".");return;}var url=mailHrefFor(p);var w=window.open(url);if(!w)window.location.href=url;}
 function applyCall(kind){var p=data.find(x=>x.id===callId);if(!p){closeCall();return;}
- var d=new Date().toLocaleDateString();var add=function(t){p.notes=(p.notes&&p.notes.trim()?p.notes.trim()+"\n":"")+"["+d+"] Call: "+t;};
- var _cl={no_answer:"No answer",not_service:"Number not in service",gatekeeper:"Gatekeeper",later:"Call later",email:"Switched to email",not_interested:"Not interested"}[kind]||kind;logContact(p,"Call — "+_cl);
- if(kind==="no_answer"){add("No answer");advContacted(p);}
- else if(kind==="gatekeeper"){add("Reached gatekeeper");advContacted(p);}
- else if(kind==="later"){add("Call later — follow up");p.next="Call later";var _d=new Date();_d.setDate(_d.getDate()+7);p.followUp=_d.toISOString().slice(0,10);advContacted(p);}
- else if(kind==="email"){add("Switching to email");advContacted(p);save();drawKPIs();drawRows();closeCall();emailDraftFor(p);return;}
- else if(kind==="not_service"){add("Number not in service");var bad=(''+(p.phone||'')).trim();p.phone="";if(!hasContact(p))p.stage="Researching";}
- else if(kind==="not_interested"){add("Not interested");p.outcome="Not Interested";}
+ var d=new Date().toLocaleDateString();var iso=new Date().toISOString().slice(0,10);
+ var CL={no_answer:"No answer",line_busy:"Line busy",line_failed:"Line didn't go through",gatekeeper:"Gatekeeper",call_later:"In meeting / call later",cut:"Cut the call",send_info:"Spoke — send info",meeting:"Asked for a meeting",how_number:"Queried number source",has_advisor:"Has current advisor",not_interested:"Not interested",do_not_call:"Negative — do not call"};
+ var label=CL[kind]||kind;logContact(p,"Call — "+label);
+ p.notes=(p.notes&&p.notes.trim()?p.notes.trim()+"\n":"")+"["+d+"] Call: "+label;
+ advContacted(p);
+ var FU={no_answer:2,line_busy:1,line_failed:2,gatekeeper:3,call_later:3,cut:2,send_info:2};
+ if(FU[kind]){var _d=new Date();_d.setDate(_d.getDate()+FU[kind]);p.followUp=_d.toISOString().slice(0,10);}
+ if(kind==="send_info"){p.responded=true;p.respondedDate=iso;if(stageIdx(p.stage)<stageIdx("Response Received"))p.stage="Response Received";}
+ if(kind==="meeting"){p.responded=true;p.respondedDate=iso;if(stageIdx(p.stage)<stageIdx("Meeting"))p.stage="Meeting";}
+ if(kind==="not_interested"||kind==="has_advisor"){p.outcome="Not Interested";p.responded=true;p.respondedDate=iso;p.done=true;}
+ if(kind==="do_not_call"){p.outcome="Not Interested";p.responded=true;p.respondedDate=iso;p.done=true;p.archived=true;p.archiveReason="Do not call";}
  save();drawKPIs();drawCoverage();drawRows();closeCall();
 }
 var emailId=null;
@@ -951,11 +978,11 @@ function drawRows(){
  const todayStr=new Date().toISOString().slice(0,10);
  clearFilters.style.display=(q||fi||fs||fst||fg)?"inline-block":"none";
  chkCount.textContent="";
- const cP=data.filter(p=>!p.archived).length,cC=data.filter(p=>p.outcome==="Existing Client").length,cN=data.filter(p=>p.outcome==="Not Interested").length,cA=data.filter(p=>p.archived&&!p.outcome).length;
+ const cP=data.filter(p=>!p.archived&&p.outcome!=="Not Interested").length,cC=data.filter(p=>p.outcome==="Existing Client").length,cN=data.filter(p=>p.outcome==="Not Interested").length,cA=data.filter(p=>p.archived&&!p.outcome).length;
  const setCnt=(v,n)=>{const el=tabs.querySelector('[data-view="'+v+'"] .cnt');if(el)el.textContent=n;};
  setCnt("pipeline",cP);setCnt("client",cC);setCnt("no",cN);setCnt("archived",cA);
  let rows=data.filter(p=>{
-  if(view==="pipeline"){if(p.archived)return false;}
+  if(view==="pipeline"){if(p.archived||p.outcome==="Not Interested")return false;}
   else if(view==="client"){if(p.outcome!=="Existing Client")return false;}
   else if(view==="no"){if(p.outcome!=="Not Interested")return false;}
   else if(view==="archived"){if(!(p.archived&&!p.outcome))return false;}
@@ -985,7 +1012,7 @@ function drawRows(){
    <td><span class="pill seg-${sg}">${esc(p.segment.split(" ")[0])}</span></td>
    <td>${esc(p.stage)}</td>
    <td><div class="name"><a class="glink" href="https://www.google.com/search?q=${encodeURIComponent(p.name+' Kenya')}" target="_blank" rel="noopener">${esc(p.name)}</a><small>${esc(p.role||"")}${p.group?` &middot; <b style="color:#6d28d9">${esc(p.group)}</b>`:""}${p.outcome?` <span class="otag ${p.outcome==='Existing Client'?'client':'no'}">${esc(p.outcome)}</span>`:""}${p.archived?' 📥':''}${p.archived&&p.archiveReason?` <i style="color:var(--muted)">— ${esc(p.archiveReason)}</i>`:""}${p.followUp?` &middot; <span style="color:${p.followUp<=todayStr?'#c0392b':'var(--muted)'};font-weight:600">📅 ${esc(p.followUp)}</span>`:""}${(p.tags&&p.tags.length)?' '+p.tags.map(t=>'<span class="tagchip">'+esc(t)+'</span>').join(''):''}</small></div></td>
-   <td><div class="score-wrap" style="gap:7px">${ring(completion(p))}<b>${completion(p)}%</b></div></td>
+   <td><div class="score-wrap" style="gap:7px">${ring(completion(p),p.outcome==="Not Interested"?"#dc2626":"")}<b>${completion(p)}%</b></div></td>
    <td><div class="rowact">${(p.done||p.archived)?`<button class="iconbtn" data-act="restore" data-id="${p.id}">Restore</button>`:""}<button class="iconbtn" data-act="brief" data-id="${p.id}">Profile</button><button class="iconbtn" data-act="find" data-id="${p.id}">Finder</button>${linkedInIcon(p)}${contactIcons(p)}</div></td>
   </tr>`;
  }).join("");
@@ -1179,7 +1206,9 @@ function openBcc(em){
  if(batches.length>1&&!confirm(em.length+" emails won't fit in one draft. This will open "+batches.length+" separate drafts. Continue?"))return;
  batches.forEach(function(b,i){var subj=batches.length>1?("Prospects — part "+(i+1)+" of "+batches.length):"";var url="mailto:?bcc="+encodeURIComponent(b.join(","))+"&subject="+encodeURIComponent(subj);var a=document.createElement("a");a.href=url;a.style.display="none";document.body.appendChild(a);a.click();a.remove();});
 }
+var _bdType="";
 function openBreakdown(type){
+ _bdType=type;
  var active=data.filter(p=>p.stage!=="Archived"&&!p.archived);
  var rows,title,filterInd="";
  if(type==="contacts"){rows=active.filter(hasContact);title="Direct contacts";}
@@ -1204,7 +1233,7 @@ function openBreakdown(type){
    else if(type==="followups"){sub='📅 '+esc(p.followUp||'')+(bits.length?'  ·  '+bits.join('  ·  '):'');}
    else if(filterInd){sub=[esc(p.group||""),bits.join("  ·  ")].filter(Boolean).join("  ·  ");}
    else{sub=esc(p.group||p.industry||"");}
-   return '<div class="bdrow" data-id="'+p.id+'"><b>'+esc(p.name)+'</b>'+(sub?'<small>'+sub+'</small>':'')+'</div>';
+   return '<div class="bdrow" data-id="'+p.id+'"><div style="display:flex;align-items:center;gap:8px"><a class="bdname" href="https://www.google.com/search?q='+encodeURIComponent(p.name||'')+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">'+esc(p.name)+'</a><button class="bdedit" title="Edit email / phone" onclick="event.stopPropagation();qEdit(\''+p.id+'\')">✎</button></div>'+(sub?'<small>'+sub+'</small>':'')+'</div>';
  }).join(""):'<div class="empty">Nothing here yet.</div>';
  bdCount.textContent=rows.length+" prospect"+(rows.length===1?"":"s")+" · click a row to open";
  bdFilter.style.display=filterInd?"inline-block":"none";bdFilter.dataset.ind=filterInd;
@@ -1260,7 +1289,26 @@ chartBg.addEventListener("click",function(e){if(e.target===chartBg)closeBigChart
 $("bdFilter").onclick=()=>{fInd.value=bdFilter.dataset.ind||"";bdBg.classList.remove("open");drawRows();drawCoverage();var t=document.querySelector("table");if(t)t.scrollIntoView({behavior:"smooth",block:"center"});};
 bdBg.addEventListener("click",e=>{if(e.target===bdBg)bdBg.classList.remove("open");});
 bdBody.addEventListener("click",e=>{var r=e.target.closest(".bdrow");if(!r)return;var p=data.find(x=>x.id===r.dataset.id);if(p){bdBg.classList.remove("open");openModal(p);}});
-function blastTargets(){return data.filter(function(p){return p.outcome!=="Not Interested"&&sendAddr(p);});}
+var qeId=null;
+function qEdit(id){var p=data.find(x=>x.id===id);if(!p)return;qeId=id;document.getElementById("qeWho").textContent=p.name||'';
+ var ems=[p.email].concat(p.extraEmails||[]).filter(function(x){return x&&(''+x).trim();});
+ var phs=[p.phone].concat(p.extraPhones||[]).filter(function(x){return x&&(''+x).trim();});
+ document.getElementById("qeEmail").value=ems.join(", ");
+ document.getElementById("qePhone").value=phs.join(", ");
+ qeBg.classList.add("open");}
+function qeCloseFn(){qeBg.classList.remove("open");qeId=null;}
+function qeSaveFn(){var p=data.find(x=>x.id===qeId);if(!p){qeCloseFn();return;}
+ var split=function(s){return (''+s).split(/[,;\n]+/).map(function(x){return x.trim();}).filter(Boolean);};
+ var seenE={},ems=[];split(document.getElementById("qeEmail").value).forEach(function(x){var k=x.toLowerCase();if(!seenE[k]){seenE[k]=1;ems.push(x);}});
+ var seenP={},phs=[];split(document.getElementById("qePhone").value).forEach(function(x){var n=normPhone(x);if(n&&!seenP[n]){seenP[n]=1;phs.push(n);}});
+ p.email=ems[0]||'';p.extraEmails=ems.slice(1);if(p.email)p.verified=true;
+ p.phone=phs[0]||'';p.extraPhones=phs.slice(1);p.phoneManual=!!p.phone;
+ if(hasContact(p)&&(p.stage==="To Research"||p.stage==="Researching"))p.stage="Contact Found";
+ save();drawKPIs();drawCoverage();drawRows();qeCloseFn();if(_bdType)openBreakdown(_bdType);}
+$("qeClose").onclick=$("qeCancel").onclick=qeCloseFn;
+$("qeSave").onclick=qeSaveFn;
+qeBg.addEventListener("click",e=>{if(e.target===qeBg)qeCloseFn();});
+function blastTargets(){return data.filter(function(p){return p.archiveReason!=="Do not call"&&sendAddr(p);});}
 $("massBtn").onclick=()=>{
  var all=blastTargets();
  if(!all.length){alert("No clients with an email to blast yet. Add or import some emails first.");return;}
@@ -1270,9 +1318,10 @@ $("massBtn").onclick=()=>{
  var BATCH=20,batch=q.ids.slice(0,BATCH).map(function(id){return data.find(function(p){return p.id===id;});}).filter(Boolean);
  var more=q.ids.length-batch.length;
  if(!confirm("EMAIL BLAST (personalised)\n\nOpens "+batch.length+" draft(s)"+(more>0?(" — "+more+" remaining after this batch"):"")+". Named contacts are greeted “Dear {first name},”; company-only addresses get “Good morning/afternoon,”. Uses your standard message from Templates + your sign-off.\n\nNothing is sent automatically — you press Send in your email app. Continue?"))return;
- batch.forEach(function(p){var a=document.createElement('a');a.href=blastIntroHrefFor(p);a.style.display='none';document.body.appendChild(a);a.click();a.remove();});
+ batch.forEach(function(p){var a=document.createElement('a');a.href=blastIntroHrefFor(p);a.style.display='none';document.body.appendChild(a);a.click();a.remove();logContact(p,"Email — blast");advContacted(p);});
  q.ids=q.ids.slice(BATCH);
  if(q.ids.length)localStorage.setItem("blastQueue",JSON.stringify(q));else localStorage.removeItem("blastQueue");
+ save();drawKPIs();drawCoverage();drawRows();drawWeek();
  alert("Opened "+batch.length+" personalised draft(s)."+(q.ids.length?("\n"+q.ids.length+" still to go — click Email Blast again for the next batch."):"\nThat's everyone — blast complete."));
 };
 var loc=localStorage.getItem("loc")||"H";
@@ -1471,7 +1520,7 @@ fInd.onchange=()=>{drawRows();drawCoverage();};
 fSeg.onchange=fStage.onchange=fGroup.onchange=drawRows;
 fSort.onchange=e=>{sortK=e.target.value;sortDir=(sortK==="name"||sortK==="industry")?1:-1;drawRows();};
 document.querySelectorAll("th[data-k]").forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortK===k)sortDir*=-1;else{sortK=k;sortDir=(k==="name"||k==="stage"||k==="industry")?1:-1;}drawRows();});
-rowsEl.addEventListener("click",e=>{const b=e.target.closest("button[data-act]");if(b){const p=data.find(x=>x.id===b.dataset.id);if(!p)return;const a=b.dataset.act;if(a==="edit")openModal(p);else if(a==="find")openFinder(p.id);else if(a==="restore"){snap();p.done=false;p.archived=false;p.outcome="";p.archiveReason="";save();drawKPIs();drawCoverage();drawRows();}else openBrief(p);return;}
+rowsEl.addEventListener("click",e=>{const b=e.target.closest("button[data-act]");if(b){const p=data.find(x=>x.id===b.dataset.id);if(!p)return;const a=b.dataset.act;if(a==="edit")openModal(p);else if(a==="find")fOpenSearch(p.id);else if(a==="restore"){snap();p.done=false;p.archived=false;p.outcome="";p.archiveReason="";save();drawKPIs();drawCoverage();drawRows();}else openBrief(p);return;}
  if(e.target.closest("input,a"))return;const tr=e.target.closest("tr[data-id]");if(!tr)return;const p=data.find(x=>x.id===tr.dataset.id);if(p)openModal(p);});
 function updateUndo(){}
 function snap(){}
@@ -1654,8 +1703,22 @@ if(!localStorage.getItem("chem_merge_v1")){
  data=data.filter(function(p){if(p.group!=="Chemical Industry")return true;return chBest[(p.name||"").trim().toLowerCase()]===p;});
  localStorage.setItem("chem_merge_v1","1");
 }
+if(!localStorage.getItem("blast_log_backfill_20260615")){
+ var _bt=new Date().toISOString().slice(0,10);
+ blastTargets().forEach(function(p){
+  var loggedToday=(p.contactLog||[]).some(function(e){return e&&e.d===_bt&&/email/i.test(e.t||'');});
+  if(loggedToday)return;
+  if(!p.contactLog)p.contactLog=[];
+  p.contactLog.push({d:_bt,t:"Email — blast"});p.lastContacted=_bt;advContacted(p);
+ });
+ localStorage.setItem("blast_log_backfill_20260615","1");
+}
 render();
 checkBackupNag();
+/* Catch-all autosave: flush any in-memory change to storage before leaving/hiding, so every field is captured in exports/sync. */
+window.addEventListener("beforeunload",function(){try{save();}catch(e){}});
+window.addEventListener("pagehide",function(){try{save();}catch(e){}});
+document.addEventListener("visibilitychange",function(){if(document.hidden){try{save();}catch(e){}}});
 </script>
 <script>
 (function(){

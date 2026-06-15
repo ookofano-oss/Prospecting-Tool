@@ -347,6 +347,9 @@ function boot(){
  }catch(err){var el=document.getElementById("list");if(el)el.innerHTML='<div class="empty">Startup error: '+((err&&err.message)?(''+err.message):(''+err))+'</div>';}
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
+window.addEventListener("beforeunload",function(){try{save();}catch(e){}});
+window.addEventListener("pagehide",function(){try{save();}catch(e){}});
+document.addEventListener("visibilitychange",function(){if(document.hidden){try{save();}catch(e){}}});
 </script>
 </body>
 </html>
